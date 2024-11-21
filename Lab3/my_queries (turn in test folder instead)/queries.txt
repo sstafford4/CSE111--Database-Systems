@@ -1,0 +1,173 @@
+#1
+
+select count(l_quantity) as itm_cnt
+from lineitem 
+where l_shipdate < l_commitdate
+
+#2 
+
+-- returns the minimum account balance, the maximum account balance, and the total account balance of
+-- every item in customer given that the mktsegment type is FURNITURE
+select min(c_acctbal) as min_acct_bal, max(c_acctbal) as max_acct_bal, sum(c_acctbal) as tot_acct_bal
+from customer
+where c_mktsegment = 'FURNITURE';
+
+--output: -982.32, 9889.89, 1265282.7999999996
+
+#3
+
+-- returns the address, phone number, and account balance of the customer given their name is customer#000000227
+
+SELECT c_address, c_phone, c_acctbal
+FROM customer
+WHERE c_name = 'Customer#000000227';
+
+#4
+
+-- returns the names of the suppliers given that their account balance is >= 8000
+
+SELECT s_name
+from supplier
+where s_acctbal > 8000;
+
+#5
+
+select l_receiptdate, l_returnflag, l_extendedprice, l_tax
+from lineitem
+where l_returnflag != 'Y' AND l_receiptdate = '1995-09-22';
+
+#6
+
+--Find the total account balance of the suppliers from every nation. Print the nation name and the total
+--account balance
+
+select n_name, sum(s_acctbal) as total_acct_bal
+from supplier, nation
+where supplier.s_nationkey = nation.n_nationkey
+group by n_name;
+
+#7
+
+--Find the total price o totalprice of orders made by customers from AMERICA in 1995
+
+select sum(o_totalprice) as total_price
+from orders, customer, nation, region
+where customer.c_custkey = orders.o_custkey
+and strftime('%Y',orders.o_orderdate) = '1995'
+and customer.c_nationkey = nation.n_nationkey
+and nation.n_regionkey = region.r_regionkey
+and region.r_name = 'AMERICA'
+
+#8
+
+--nations and customers that made orders in december 1994
+--print every nation only once and have them in alphabetical order
+
+select n_name
+from nation, customer, orders
+where customer.c_nationkey = nation.n_nationkey
+--only want orders from dec 1994, therefore, the line should look something like this:
+and strftime('%Y-%m',orders.o_orderdate) = '1994-12' --strftime seperates the dateline features
+--and strftime('%m', orders.o_orderdate) = '12' -- must use lowercase m for it to work with months
+group by n_nationkey
+order by n_name ASC --prints in ascending alphbetical order
+
+#9
+
+--COMPLETE
+
+--How many line items ordered by Customer#000000227 were received every month? Print the number
+--of ordered line items corresponding to every (year, month) pair from l_receiptdate
+
+-- this takes the count of each l_receiptdate and the year and month of each l_receiptdate
+-- that matches the parameters
+
+select strftime('%Y-%m',l_receiptdate) as year_month, COUNT(l_receiptdate) as items
+from orders,customer,lineitem
+where orders.o_custkey = customer.c_custkey --matches customer keys
+and lineitem.l_orderkey = orders.o_orderkey -- matches order keys
+and customer.c_name = 'Customer#000000227' --ensures that cust name matches
+group by year_month
+order by year_month ASC
+
+#10
+
+--Find the name of the suppliers from ASIA who have more than $5,000 on account balance. Print the
+--supplier name and their account balance
+
+--this should be correct
+
+select s_name, s_acctbal
+from supplier, nation, region
+where s_nationkey = n_nationkey
+and n_regionkey = r_regionkey
+and n_regionkey = '2'
+and s_acctbal > 5000
+group by s_name
+
+--there are better ways for me to do this but its fine for now
+
+#11
+
+-- idk if this is correct. I think that everything should be right, but i am unsure
+--current output: 9111
+-- this is wrong 
+select count(o_orderpriority) as order_cnt
+from orders
+join customer on c_custkey = o_custkey
+join nation on c_nationkey = n_nationkey
+
+where strftime('%Y',o_orderdate)='1993' or strftime('%Y',o_orderdate)='1994' or strftime('%Y',o_orderdate)='1995' or strftime('%Y',o_orderdate)='1996' or strftime('%Y',o_orderdate)='1997' 
+and n_name = 19
+and o_orderpriority = '1-URGENT'
+
+#12
+
+--Find the total number of line items on orders with priority 3-MEDIUM supplied by suppliers from
+--ARGENTINA and BRAZIL. Group these line items based on the year of the order from o orderdate.
+--Print the year and the count. Check the substr function in SQLite.
+
+select substr(o_orderdate,1,4) as order_year, count(l_quantity) as item_cnt
+from lineitem
+join orders on o_orderkey = l_orderkey
+join supplier on l_suppkey = s_suppkey
+join nation on s_nationkey = n_nationkey
+where (n_nationkey = 1 or n_nationkey = 2)
+and o_orderpriority = '3-MEDIUM'
+group by order_year
+
+#13
+
+--Find the number of suppliers that provided a discount of 10% for one of their line items. For every
+--such supplier, print its name and the number of such discounted line items.
+select distinct s_name, count(l_quantity) as discounted_items -- takes in s_name and the count of lineitem quantities 
+from supplier, lineitem
+where l_suppkey = s_suppkey -- for items where the suppkey matches
+and l_discount = 0.1 -- and where the discount is 10%
+group by s_name -- then groups them by the name of the supplier
+
+#14
+
+--Find the number of orders having status F. Group these orders based on the region of the customer
+--who posted the order. Print the region name and the number of status F orders.
+
+select r_name, count(o_orderkey) as order_cnt
+from orders
+join customer on o_custkey = c_custkey
+join nation on c_nationkey = n_nationkey
+join region on n_regionkey = r_regionkey
+where o_orderstatus = 'F'
+group by r_name;
+
+#15
+
+--Find the total account balance of all the customers from AMERICA in the FURNITURE market segment.
+
+
+--gonna need customer, region, nation
+select sum(c_acctbal) as tot_acct_bal
+from customer
+join nation on c_nationkey = n_nationkey
+join region on n_regionkey = r_regionkey
+where r_name = 'AMERICA' 
+and c_mktsegment = 'FURNITURE'
