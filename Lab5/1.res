@@ -1,0 +1,6 @@
+country|cust_cnt|supp_cnt
+CHINA|58|7
+INDIA|60|5
+INDONESIA|66|5
+JAPAN|67|4
+VIETNAM|58|6
