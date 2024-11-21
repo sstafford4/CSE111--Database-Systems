@@ -1,0 +1,389 @@
+#1 --SHOULD BE OK--
+--Find the supplier-customer pair(s) with the most expensive (o totalprice) order(s) completed (i.e.,
+--value of o orderstatus is F). Print the supplier name, the customer name, and the total price.
+
+select s_name as supplier, c_name as customer, o_totalprice as price
+from orders
+join customer on o_custkey = c_custkey
+join lineitem on o_orderkey = l_orderkey
+join supplier on l_suppkey = s_suppkey
+where o_orderstatus = 'F'
+and o_totalprice = (select max(o_totalprice)
+                    from orders
+                    where o_orderstatus = 'F')
+
+
+#2 --SHOULD BE OK--
+--Find how many distinct customers have at least one order supplied exclusively by suppliers from
+--AFRICA.
+
+select count(distinct c_custkey) as customer_cnt
+from customer
+join orders on c_custkey = o_custkey
+join lineitem on o_orderkey = l_orderkey
+join supplier on l_suppkey = s_suppkey
+join nation on s_nationkey = n_nationkey
+join region on n_regionkey = r_regionkey
+where r_name = 'AFRICA'
+and o_orderkey not in (select l_orderkey
+                        from lineitem
+                        join supplier on l_suppkey = s_suppkey
+                        join nation on s_nationkey = n_nationkey
+                        join region on r_regionkey = n_regionkey
+                        where r_name != 'AFRICA')
+
+
+#3 --SHOULD BE OK-- 
+--Find the distinct parts (p name) ordered by customers from ASIA that are supplied by exactly 3 suppliers
+--from AFRICA
+
+select distinct p.p_name as part
+from customer c
+join nation n on c.c_nationkey = n.n_nationkey
+join region r on n.n_regionkey = r.r_regionkey
+join orders o on c.c_custkey = o.o_custkey
+join lineitem l on o.o_orderkey = l.l_orderkey
+join part p on l.l_partkey = p.p_partkey
+join supplier s on l.l_suppkey = s.s_suppkey
+join nation s_n on s.s_nationkey = s_n.n_nationkey
+join region s_r on s_n.n_regionkey = s_r.r_regionkey
+where r.r_name = 'ASIA'
+and s_r.r_name = 'AFRICA'
+group by p.p_partkey, p.p_name
+having count(distinct s.s_suppkey) = 3;
+
+#4
+--Find the nation(s) with the least developed industry, i.e., selling items totaling the smallest amount of
+--money (l extendedprice) in 1994 (l shipdate)
+
+--OUTTPUT: RUSSIA--
+select n_name as country
+from lineitem 
+join supplier on l_suppkey = s_suppkey
+join nation on s_nationkey = n_nationkey
+where l_extendedprice = (select min(l_extendedprice)
+                                from lineitem
+                                where strftime('%Y', l_shipdate) = '1994')
+
+--ANOTHER OPTION--
+--OUTPUT: JORDAN--
+SELECT n.n_name AS country
+FROM lineitem l
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+WHERE strftime('%Y', l.l_shipdate) = '1994'
+GROUP BY n.n_name
+HAVING SUM(l.l_extendedprice) = (
+    SELECT MIN(total_sales)
+    FROM (
+        SELECT SUM(l2.l_extendedprice) AS total_sales
+        FROM lineitem l2
+        JOIN supplier s2 ON l2.l_suppkey = s2.s_suppkey
+        JOIN nation n2 ON s2.s_nationkey = n2.n_nationkey
+        WHERE strftime('%Y', l2.l_shipdate) = '1994'
+        GROUP BY n2.n_name
+    ) AS sales_summary
+);
+
+
+#5 --SHOULD BE OK--
+--Find the number of customers who had at most three orders in November 1995 (o orderdate)
+
+--OUTPUT: 174--
+select count(distinct c_custkey) as customer_cnt
+from customer
+join orders on c_custkey = o_custkey
+where strftime('%Y-%m', o_orderdate) = '1995-11'
+having count(distinct o_orderkey) = 3
+
+#6 --MOST LIKELY INCORRECT--
+--Find how many suppliers from PERU supply more than 40 different parts
+
+--OUTPUT: 320--
+select count(s_suppkey) as supplier_cnt
+from supplier
+join nation on s_nationkey = n_nationkey
+join partsupp on s_suppkey = ps_suppkey
+where n_name = 'PERU'
+having count(ps_partkey) > 40
+
+--ANOTHER OPTION--
+--Output: 4--
+SELECT
+    COUNT(DISTINCT s_name) AS suppliers_cnt
+FROM 
+    (SELECT
+        s_name,
+        COUNT(DISTINCT p_partkey) AS parts_cnt
+    FROM
+        supplier,
+        part,
+        partsupp,
+        nation
+    WHERE
+        s_suppkey = ps_suppkey
+        AND 
+        ps_partkey = p_partkey
+        AND
+        s_nationkey = n_nationkey
+        AND
+        n_name = 'PERU'
+    GROUP BY
+        s_name
+    HAVING
+        parts_cnt > 40);
+
+#7 --CORRECT--
+--Find the total quantity (l quantity) of line items shipped per month (l shipdate) in 1997. Hint:
+--check function strftime to extract the month/year from a date.
+
+select strftime('%m',l_shipdate) as month, sum(l_quantity) as tot_month
+from lineitem
+where strftime('%Y', l_shipdate) = '1997'
+group by month
+
+#8 --BLANK OUTPUT!--
+--Find how many suppliers have less than 50 distinct orders from customers in EGYPT and JORDAN
+--together.
+
+select count(s_suppkey) as supplier_cnt
+from supplier
+join nation on s_nationkey = n_nationkey
+join customer on n_nationkey = c_nationkey
+join orders on c_custkey = o_custkey
+where c_nationkey in (4,12)
+group by s_suppkey
+having count(distinct o_orderkey) < 50
+
+-- doesnt work at all
+
+--ANOTHER OPTION-- 
+-- Output: 37--
+SELECT 
+    COUNT(s_name) AS supplier_cnt
+FROM 
+    (SELECT
+        s_name,
+        COUNT(DISTINCT o_orderkey) as num_orders
+    FROM
+        supplier,
+        customer,
+        nation,
+        lineitem,
+        orders
+    WHERE
+        c_nationkey = n_nationkey
+        AND
+        n_name IN ('EGYPT', 'JORDAN')
+        AND
+        o_orderkey = l_orderkey
+        AND
+        c_custkey = o_custkey
+        AND
+        l_suppkey = s_suppkey
+    GROUP BY
+        s_name
+    HAVING
+        num_orders < 50);
+
+#9 --MOST LIKELY INCORRECT-- 
+--Find how many suppliers supply the least expensive part (p retailprice)
+
+--OUTPUT: 8--
+select count(s_suppkey) as supplier_cnt 
+from supplier
+join partsupp on s_suppkey = ps_suppkey
+join part on ps_partkey = p_partkey
+where p_retailprice = (select min(p_retailprice)
+                        from part)
+
+#10 
+--Find the nation(s) having customers that spend the largest amount of money (o totalprice).
+--OUTPUT: CANADA--
+SELECT n.n_name AS country
+FROM customer c
+JOIN orders o ON c.c_custkey = o.o_custkey
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+GROUP BY n.n_name
+HAVING SUM(o.o_totalprice) = (
+    SELECT MAX(total_spent)
+    FROM (
+        SELECT SUM(o2.o_totalprice) AS total_spent
+        FROM customer c2
+        JOIN orders o2 ON c2.c_custkey = o2.o_custkey
+        JOIN nation n2 ON c2.c_nationkey = n2.n_nationkey
+        GROUP BY n2.n_name
+    ) AS nation_spending
+);
+
+--Another Option--
+--Output: France--
+SELECT
+    country
+FROM 
+    (SELECT 
+        country,
+        MIN(total)
+    FROM
+        (SELECT
+            n_name AS country,
+            SUM(o_totalprice) AS total
+        FROM
+            nation,
+            customer,
+            orders
+        WHERE
+            n_nationkey = c_nationkey
+            AND 
+            c_custkey = o_custkey
+        GROUP BY
+            country));
+
+#11 --SHOULD BE GOOD--
+--find the region where customers spend the largest amount of money (l extendedprice) buying items
+--from suppliers in the same region.
+--OUTPUT: Asia -- 
+
+SELECT r.r_name AS region
+FROM customer c
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+JOIN region r ON n.n_regionkey = r.r_regionkey
+JOIN orders o ON c.c_custkey = o.o_custkey
+JOIN lineitem l ON o.o_orderkey = l.l_orderkey
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+JOIN region sr ON sn.n_regionkey = sr.r_regionkey
+WHERE r.r_regionkey = sr.r_regionkey -- Ensure customer and supplier are in the same region
+GROUP BY r.r_name
+ORDER BY SUM(l.l_extendedprice) DESC
+LIMIT 1;
+
+#12 --MIGHT BE GOOD?--
+--Find how many parts are supplied by exactly one supplier from UNITED STATES
+
+--OUTPUT: 574--
+SELECT COUNT(DISTINCT p.p_partkey) AS part_cnt
+FROM part p
+JOIN partsupp ps ON p.p_partkey = ps.ps_partkey
+JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+WHERE n.n_name = 'UNITED STATES'
+HAVING COUNT(DISTINCT s.s_suppkey) = 1
+
+#13 --MIGHT BE GOOD?--
+--Find the nation(s) with the largest number of customers
+
+--OUTPUT: Iran, Morrocco
+
+SELECT n_name AS country
+FROM customer
+JOIN nation ON c_nationkey = n_nationkey
+GROUP BY n_name
+HAVING COUNT(c_custkey) = (
+    SELECT MAX(customer_count)
+    FROM (
+        SELECT COUNT(c_custkey) AS customer_count
+        FROM customer
+        JOIN nation ON c_nationkey = n_nationkey
+        GROUP BY n_name
+    ) AS subquery
+)
+
+#14 --SHOULD BE GOOD--
+--Compute, for every country, the value of economic exchange, i.e., the difference between the number
+--of items from suppliers in that country sold to customers in other countries and the number of items
+--bought by local customers from foreign suppliers in 1997 (l shipdate)
+
+
+WITH items_sold AS (
+    -- Items shipped from suppliers in a country to foreign customers
+    SELECT
+        s_nationkey AS nationkey,
+        COUNT(*) AS sold_items
+    FROM lineitem
+    JOIN orders ON l_orderkey = o_orderkey
+    JOIN customer ON o_custkey = c_custkey
+    JOIN nation cust_nation ON c_nationkey = cust_nation.n_nationkey
+    JOIN supplier ON l_suppkey = s_suppkey
+    JOIN nation supp_nation ON s_nationkey = supp_nation.n_nationkey
+    WHERE strftime('%Y', l_shipdate) = '1997'
+      AND cust_nation.n_nationkey != supp_nation.n_nationkey
+    GROUP BY s_nationkey
+),
+items_bought AS (
+    -- Items bought by customers from foreign suppliers
+    SELECT
+        c_nationkey AS nationkey,
+        COUNT(*) AS bought_items
+    FROM lineitem
+    JOIN orders ON l_orderkey = o_orderkey
+    JOIN customer ON o_custkey = c_custkey
+    JOIN nation cust_nation ON c_nationkey = cust_nation.n_nationkey
+    JOIN supplier ON l_suppkey = s_suppkey
+    JOIN nation supp_nation ON s_nationkey = supp_nation.n_nationkey
+    WHERE strftime('%Y', l_shipdate) = '1997'
+      AND cust_nation.n_nationkey != supp_nation.n_nationkey
+    GROUP BY c_nationkey
+)
+-- Calculate the economic exchange value for each nation
+SELECT 
+    n_name AS country,
+    COALESCE(sold_items, 0) - COALESCE(bought_items, 0) AS economic_exchange
+FROM nation
+LEFT JOIN items_sold ON nation.n_nationkey = items_sold.nationkey
+LEFT JOIN items_bought ON nation.n_nationkey = items_bought.nationkey
+ORDER BY economic_exchange DESC;
+
+#15 --MAYBE?--
+
+--Compute the change in the economic exchange for every country between 1996 and 1998. There should
+--be two columns in the output for every country: 1997 and 1998. Hint: use CASE to select the values
+--in the result.
+
+WITH items_sold AS (
+    -- Items sold by suppliers in a country to foreign customers in both 1996 and 1998
+    SELECT
+        s_nationkey AS nationkey,
+        strftime('%Y', l_shipdate) AS year,
+        COUNT(*) AS sold_items
+    FROM lineitem
+    JOIN orders ON l_orderkey = o_orderkey
+    JOIN customer ON o_custkey = c_custkey
+    JOIN nation cust_nation ON c_nationkey = cust_nation.n_nationkey
+    JOIN supplier ON l_suppkey = s_suppkey
+    JOIN nation supp_nation ON s_nationkey = supp_nation.n_nationkey
+    WHERE strftime('%Y', l_shipdate) IN ('1997', '1998')
+      AND cust_nation.n_nationkey != supp_nation.n_nationkey
+    GROUP BY s_nationkey, strftime('%Y', l_shipdate)
+),
+items_bought AS (
+    -- Items bought by customers in a country from foreign suppliers in both 1996 and 1998
+    SELECT
+        c_nationkey AS nationkey,
+        strftime('%Y', l_shipdate) AS year,
+        COUNT(*) AS bought_items
+    FROM lineitem
+    JOIN orders ON l_orderkey = o_orderkey
+    JOIN customer ON o_custkey = c_custkey
+    JOIN nation cust_nation ON c_nationkey = cust_nation.n_nationkey
+    JOIN supplier ON l_suppkey = s_suppkey
+    JOIN nation supp_nation ON s_nationkey = supp_nation.n_nationkey
+    WHERE strftime('%Y', l_shipdate) IN ('1997', '1998')
+      AND cust_nation.n_nationkey != supp_nation.n_nationkey
+    GROUP BY c_nationkey, strftime('%Y', l_shipdate)
+)
+-- Calculate the economic exchange value for each nation for 1996 and 1998
+SELECT 
+    n_name AS country,
+    -- Economic exchange in 1996
+    COALESCE(SUM(CASE WHEN items_sold.year = '1997' THEN sold_items ELSE 0 END), 0) -
+    COALESCE(SUM(CASE WHEN items_bought.year = '1997' THEN bought_items ELSE 0 END), 0) AS '1997',
+    
+    -- Economic exchange in 1998
+    COALESCE(SUM(CASE WHEN items_sold.year = '1998' THEN sold_items ELSE 0 END), 0) -
+    COALESCE(SUM(CASE WHEN items_bought.year = '1998' THEN bought_items ELSE 0 END), 0) AS '1998'
+FROM nation
+LEFT JOIN items_sold ON nation.n_nationkey = items_sold.nationkey
+LEFT JOIN items_bought ON nation.n_nationkey = items_bought.nationkey
+GROUP BY n_name
+ORDER BY '1997' DESC, '1998' DESC
