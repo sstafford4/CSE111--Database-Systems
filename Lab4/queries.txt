@@ -1,0 +1,184 @@
+NEED TO FIX: 6, 9, 13
+
+#1 --CORRECT--
+--How many orders are posted by customers in every country in MIDDLE EAST?
+select n_name as country, count(o_orderkey) as cnt
+from orders, customer, nation
+join region on n_regionkey = r_regionkey
+where o_custkey = c_custkey
+and c_nationkey = n_nationkey
+and r_name = 'MIDDLE EAST'
+group by n_name
+
+#2 --FIXED--
+select c_name as customer, count(o_orderkey) as cnt
+from customer, orders
+join nation on c_nationkey = n_nationkey
+where n_name = 'MOZAMBIQUE'
+and strftime('%Y', o_orderdate) = '1997'
+and c_custkey = o_custkey
+group by c_name
+
+
+#3 --FIXED--
+--Find the total price paid on orders by every customer from GERMANY in 1992. Print the customer name
+--and the total price.
+
+select c_name as customer,sum(o_totalprice) as total_price
+from customer, orders
+join nation on c_nationkey = n_nationkey
+where n_nationkey = 7 
+and o_custkey = c_custkey
+and strftime('%Y', o_orderdate) = '1992'
+group by c_name
+
+#4 --FIXED--
+--How many parts in a %CAN% container does every supplier from RUSSIA offer? Print the name of the
+--supplier and the number of parts
+
+select s_name as supplier, count(p_partkey) as cnt
+from supplier, partsupp
+join part on ps_partkey = p_partkey
+join nation on s_nationkey = n_nationkey
+where s_suppkey = ps_suppkey
+and p_container like '%CAN%'
+and n_nationkey = 22
+group by s_name
+
+#5 --CORRECT--
+--Find the number of suppliers from each of JAPAN and CHINA
+
+select n_name as country , count(s_nationkey) as cnt
+from supplier, nation
+where (n_name = 'JAPAN' or n_name = 'CHINA')
+and s_nationkey = n_nationkey
+group by n_name 
+
+#6 --INCORRECT-- BUT SHOWS THE RIGHT SUPPLIERS
+--How many unique parts produced by every supplier in ARGENTINA are ordered at every priority? Print
+--the supplier name, the order priority, and the number of parts.
+
+select s_name as supplier, o_orderpriority as priority, count(distinct p_partkey) as parts
+from supplier, orders
+join nation on s_nationkey = n_nationkey
+join partsupp on s_suppkey = ps_suppkey
+join part on ps_partkey = p_partkey
+where n_name = 'ARGENTINA'
+group by s_name, o_orderpriority
+
+#7 --CORRECT--
+--How many orders do customers in every nation in ASIA have in every status? Print the nation name,
+--the order status, and the count.
+
+select n_name as country, o_orderstatus as status, count(o_orderkey) as orders
+from nation, orders
+join customer on o_custkey = c_custkey
+join region on n_regionkey = r_regionkey
+where c_nationkey = n_nationkey 
+and r_name = 'ASIA'
+group by n_name, o_orderstatus
+
+#8 --FIXED--
+--How many different order clerks did the suppliers in IRAQ work with?
+
+select count(distinct o_clerk) as clerks
+from supplier
+join nation on s_nationkey = n_nationkey
+join customer on s_nationkey = c_nationkey
+join orders on c_custkey = o_custkey
+where n_name = 'IRAQ'
+group by n_name
+
+
+#9 --INCORRECT--
+-- Find the number of distinct orders completed in 1994 by the suppliers in every nation in AMERICA. An
+--order status of F stands for complete. Print only those nations for which the number of orders is larger
+--than 250.
+
+select n_name as country, count(distinct o_orderkey) as cnt
+from nation
+join supplier on n_nationkey = s_nationkey
+join region on n_regionkey = r_regionkey
+join customer on c_nationkey = s_nationkey
+join orders on o_custkey = c_custkey
+where r_name = 'AMERICA'
+and o_orderstatus = 'F'
+and strftime('%Y',o_orderdate) = '1994'
+group by n_name
+having count(o_orderkey) > 250
+
+-- theres no way this is right tbh
+
+#10 --CORRECT--
+--Find the minimum and maximum discount for every part having MEDIUM or TIN in its type
+
+select p_type as part_type, min(l_discount) as min_discount, max(l_discount) as max_discount
+from lineitem 
+join part on l_partkey = p_partkey
+where (p_type like '%MEDIUM%' or p_type like '%TIN%')
+group by p_type 
+
+#11 --CORRECT--
+--How many distinct orders are between customers with negative account balance and suppliers with
+--positive account balance?
+
+select count(distinct o_orderkey) as order_cnt
+from orders
+join customer on o_custkey = c_custkey
+join lineitem on o_orderkey = l_orderkey
+join supplier on l_suppkey = s_suppkey
+where c_acctbal < 0
+and s_acctbal > 0
+
+#12 --CORRECT--
+--What is the maximum account balance for the suppliers in every region? Print only those regions for
+--which the maximum balance is larger than 9000.
+
+select r_name as region, max(s_acctbal) as max_bal
+from supplier
+join nation on s_nationkey = n_nationkey
+join region on n_regionkey = r_regionkey
+where s_acctbal > 9000
+group by r_name 
+
+#13 --INCORRECT--
+--List the minimum total price of an order between any two regions, i.e., the suppliers are from one
+--region and the customers are from the other region.
+
+select supp_region.r_name as supp_region, cust_region.r_name as cust_region, min(distinct o.o_totalprice) as min_price
+from orders o
+join customer c on o.o_custkey = c.c_custkey
+join nation cust_nation on c.c_nationkey = cust_nation.n_nationkey
+join region cust_region on cust_nation.n_regionkey = cust_region.r_regionkey
+join supplier s on o.o_custkey = s.s_suppkey
+join nation supp_nation on s.s_nationkey = supp_nation.n_nationkey
+join region supp_region on supp_nation.n_regionkey = supp_region.r_regionkey
+where cust_nation.n_regionkey != supp_nation.n_regionkey
+group by supp_region.r_name, cust_region.r_name
+
+--This one is messy asf
+
+#14 --CORRECT--
+--How many line items are supplied by suppliers in EUROPE for orders made by customers in INDIA?
+
+select count(l_quantity) as items
+from lineitem l
+join supplier s on l.l_suppkey = s.s_suppkey
+join nation supp_nation on s.s_nationkey = supp_nation.n_nationkey
+join orders o on l.l_orderkey = o.o_orderkey
+join customer c on o.o_custkey = c.c_custkey
+join nation cust_nation on c.c_nationkey = cust_nation.n_nationkey
+join region supp_region on supp_nation.n_regionkey = supp_region.r_regionkey
+where supp_region.r_regionkey = 3
+and cust_nation.n_name = 'INDIA'
+group by supp_region.r_name
+
+#15 --CORRECT--
+--Find the supplier with the largest account balance in every region. Print the region name, the supplier
+--name, and the account balance.
+
+select r_name as region, s_name as supplier, max(s_acctbal) as acct_bal
+from supplier, nation, region
+where s_nationkey = n_nationkey
+and n_regionkey = r_regionkey
+group by r_name
